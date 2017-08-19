@@ -1,0 +1,140 @@
+---
+title: "MachineLearningFinalProject"
+author: "Yu Fu"
+date: "8/19/2017"
+output: 
+        html_document:
+         keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Final Project 
+
+###Backgrouond
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+### Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+### Project Goal
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+
+## Solution
+
+Load packages:
+```{r}
+library(caret)
+library(randomForest)
+library(rpart)
+
+```
+
+### Getting and cleaning Data
+check if file exists, if not, download them:
+```{r}
+training_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if (!file.exists("pml-training.csv")){
+        download.file(training_url, destfile="pml-training.csv",method = "auto")
+}
+
+if (!file.exists("pml-testing.csv")){
+        download.file(testing_url, destfile="pml-testing.csv",method = "auto")
+}
+
+```
+
+reading data:
+```{r}
+data_training <- read.csv("pml-training.csv",na.strings = c("#DIV/0!", "NA"))
+data_testing <- read.csv("pml-testing.csv",na.strings = c("#DIV/0!", "NA"))
+
+dim(data_training)
+dim(data_testing)
+
+colnames(data_training)
+levels(data_training$classe)
+```
+
+As we can see, first 7 columns are distrction, drop them
+```{r}
+data_training <- data_training[,-c(1:7)]
+data_testing <-  data_testing[,-c(1:7)]
+```
+
+Split training data for training and testing the performance, 70% for training, 30% for testing
+```{r}
+set.seed(08192017)
+inTrain <- createDataPartition(y=data_training$classe,p = 0.7, list = F)
+training <- data_training[inTrain,]
+testing <- data_training[-inTrain,]
+dim(training)
+```
+
+remove the variables close to 0:
+```{r}
+data_near_zero <- nearZeroVar(training, saveMetrics=TRUE)
+training <- training[,data_near_zero$nzv == F]
+```
+
+
+Drop rows which contain to many NAs. Drop NA rate > 0.3 columns:
+```{r}
+training_clean <- training[lapply(training, function(x) sum(is.na(x))/length(x))< 0.7]
+dim(training_clean)
+```
+
+
+match testing columns to training columns:
+```{r}
+col_names <-  colnames(training_clean)
+testing_clean <-  testing[, col_names[1:52]]
+```
+
+
+### Prediction
+
+
+Prediction using Random Forest:
+```{r}
+model_rf <- randomForest(classe~., data = training_clean)
+prediction <- predict(model_rf, testing_clean)
+cm_rf <-  confusionMatrix(prediction, testing$classe)
+cm_rf
+```
+
+
+Prediction using Decision Tree:
+```{r}
+model_rpart <-  rpart(classe~., data = training_clean, method = "class")
+prediction_rpart <- predict(model_rpart, testing_clean, type = "class")
+cm_rpart <- confusionMatrix(prediction_rpart,testing$classe)
+cm_rpart
+```
+
+As for the accuracy, random forest model: 0.9954; decision tree model:0.7529.
+We will uss random forest model
+
+```{r}
+predict_classe <- predict(model_rf, data_testing)
+predict_classe
+```
+
+
